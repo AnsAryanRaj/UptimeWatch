@@ -4,9 +4,13 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./uptimewatch.db")
 
-# Fix Render / Cloud PostgreSQL URL format (Render uses postgres://, SQLAlchemy expects postgresql://)
+# Fix Render / Cloud PostgreSQL URL format and map to modern Psycopg 3 driver:
+# 1. Render supplies 'postgres://', which is deprecated in SQLAlchemy 2.0.
+# 2. Map 'postgres://' or generic 'postgresql://' to 'postgresql+psycopg://' to use the installed Psycopg 3 package.
 if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
 # Connection parameters depending on database dialect
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
