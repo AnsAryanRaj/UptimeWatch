@@ -1,4 +1,16 @@
-const API_BASE = '/api';
+// Base API URL configuration
+// In production (Vercel): VITE_API_BASE_URL points to the Render backend (e.g., https://uptimewatch-backend.onrender.com)
+// In local development / Docker Compose: Defaults to relative '' so Nginx/Vite proxy forwards /api and /metrics
+const RAW_URL = import.meta.env.VITE_API_BASE_URL
+  ? import.meta.env.VITE_API_BASE_URL.trim().replace(/\/+$/, '')
+  : '';
+
+// Normalize if user provided URL with /api suffix
+const cleanBase = RAW_URL.endsWith('/api') ? RAW_URL.slice(0, -4) : RAW_URL;
+
+export const API_BASE = cleanBase ? `${cleanBase}/api` : '/api';
+export const METRICS_URL = cleanBase ? `${cleanBase}/metrics` : '/metrics';
+export const HEALTH_URL = cleanBase ? `${cleanBase}/health` : '/health';
 
 export async function fetchStats() {
   const res = await fetch(`${API_BASE}/stats`);

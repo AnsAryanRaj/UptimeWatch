@@ -1,0 +1,87 @@
+%% =========================================================================
+%% UptimeWatch – Website Uptime Monitoring System
+%% DevOps & Application Architecture Diagram
+%% =========================================================================
+
+flowchart TB
+    %% Subgraph 1: CI/CD Pipeline
+    subgraph CICD ["1. CI/CD AUTOMATION PIPELINE (GitHub Actions)"]
+        direction LR
+        DEV["Developer Workstation<br/>(Git Commit)"] -->|"git push (main)"| GH["GitHub Repository<br/>(Push / Pull Request)"]
+        GH -->|"Trigger Webhook"| GHA["GitHub Actions Workflow<br/>(.github/workflows/ci.yml)"]
+        
+        subgraph GHA_JOBS ["Automated Parallel Validation Jobs"]
+            direction TB
+            JOB1["Job 1: Backend Test Suite<br/>(Python 3.10 + Pytest)"]
+            JOB2["Job 2: Frontend Lint & Build<br/>(Node 20 + Vite)"]
+            JOB3["Job 3: Docker Build Validation<br/>(Multi-stage Verification)"]
+        end
+        
+        GHA --> GHA_JOBS
+        GHA_JOBS -->|"All Jobs Pass"| SUCCESS["CI Pipeline Successful<br/>✓ Tests Passed<br/>✓ Images Valid"]
+    end
+
+    %% Subgraph 2: Docker Compose Runtime Architecture
+    subgraph DOCKER ["2. DOCKER RUNTIME ARCHITECTURE (docker-compose.yml)"]
+        direction TB
+        
+        subgraph CLIENT ["Client Interaction Layer"]
+            BROWSER["User / Web Browser<br/>(http://localhost:3000)"]
+        end
+
+        subgraph NETWORK ["Docker Bridge Network: uptimewatch-network"]
+            direction LR
+
+            subgraph FE_CONTAINER ["Frontend Container: uptimewatch-frontend (Port: 3000)"]
+                direction TB
+                NGINX["Nginx Web Server & Reverse Proxy<br/>- Serves static React assets<br/>- Proxies /api/* to backend:8000<br/>- Proxies /metrics to backend:8000"]
+                REACT["React 18 + Vite SPA Dashboard<br/>- Real-time Stats Cards<br/>- Website Status Grid<br/>- Manual Check Now / Check All<br/>- Historical Latency Modal"]
+                NGINX --- REACT
+            end
+
+            subgraph BE_CONTAINER ["Backend Container: uptimewatch-backend (Port: 8000)"]
+                direction TB
+                FASTAPI["FastAPI REST API Engine<br/>- /api/websites (CRUD)<br/>- /api/stats (Aggregates)<br/>- /api/check-all (Trigger)<br/>- /health (Container Healthcheck)"]
+                CHECKER["Async Background Checker<br/>- Periodic asyncio loop<br/>- httpx async prober<br/>- Latency calculation (ms)"]
+                PROMETHEUS["Prometheus Exporter (/metrics)<br/>- uptimewatch_sites_by_status<br/>- uptimewatch_site_status<br/>- uptimewatch_response_time_ms<br/>- uptimewatch_checks_total"]
+                FASTAPI --- CHECKER
+                FASTAPI --- PROMETHEUS
+            end
+
+            subgraph STORAGE ["Named Volume: uptimewatch-data"]
+                SQLITE[("SQLite Database<br/>/data/uptimewatch.db<br/>- websites table<br/>- check_history table")]
+            end
+        end
+
+        BROWSER -->|"HTTP:3000"| NGINX
+        NGINX -->|"Internal Proxy: /api/*"| FASTAPI
+        FASTAPI -->|"SQLAlchemy ORM"| SQLITE
+    end
+
+    %% Subgraph 3: External Website Monitoring Loop
+    subgraph MONITORING ["3. EXTERNAL WEBSITE MONITORING LOOP"]
+        direction TB
+        TARGETS["External Websites & APIs<br/>(e.g., https://google.com, https://github.com)"]
+        
+        CHECKER -->|"Async HTTP GET (10s Timeout)"| TARGETS
+        TARGETS -->|"HTTP Response / Code / Errors"| EVAL["Status Evaluation Engine"]
+        
+        EVAL -->|"200 <= HTTP < 400"| UP["Status: UP<br/>- Latency recorded<br/>- Prometheus gauge: 1"]
+        EVAL -->|"4xx, 5xx, Timeout, DNS Fail"| DOWN["Status: DOWN<br/>- Error details logged<br/>- Prometheus gauge: 0"]
+        
+        UP -->|"Record Result"| SQLITE
+        DOWN -->|"Record Result"| SQLITE
+    end
+
+    %% Styling
+    classDef blueBox fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#ffffff;
+    classDef greenBox fill:#14261e,stroke:#22c55e,stroke-width:2px,color:#ffffff;
+    classDef purpleBox fill:#241b35,stroke:#a855f7,stroke-width:2px,color:#ffffff;
+    classDef amberBox fill:#2a1f10,stroke:#f59e0b,stroke-width:2px,color:#ffffff;
+    classDef cyanBox fill:#0f2a33,stroke:#06b6d4,stroke-width:2px,color:#ffffff;
+
+    class DEV,GH,JOB2,BROWSER,NGINX blueBox;
+    class JOB1,SUCCESS,UP,BE_CONTAINER greenBox;
+    class GHA,JOB3,REACT,MONITORING,TARGETS purpleBox;
+    class SQLITE,STORAGE,PROMETHEUS,EVAL amberBox;
+    class FE_CONTAINER,FASTAPI,CHECKER cyanBox;

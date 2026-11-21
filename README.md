@@ -33,6 +33,8 @@
 
 ## 🏗️ System Architecture
 
+![UptimeWatch System Architecture](UptimeWatch_Architecture.png)
+
 ```text
        Browser / User
              │
@@ -231,3 +233,105 @@ The `.github/workflows/ci.yml` pipeline runs on every push or pull request to `m
 1. **Backend Job**: Sets up Python 3.10, installs dependencies, and runs `pytest`.
 2. **Frontend Job**: Sets up Node 20, installs npm dependencies, and runs `npm run build`.
 3. **Docker Build Job**: Validates `docker-compose.yml` and builds both backend and frontend Docker images using Buildx.
+
+---
+
+## 🚀 Production Deployment Guide (Vercel & Render)
+
+UptimeWatch is architected for seamless separation of concerns between client and server layers:
+- **Frontend**: Hosted globally on **Vercel** with automatic HTTPS, edge CDN, and continuous Git deployments.
+- **Backend & Database**: Hosted on **Render** as a persistent Python Web Service with an optional managed PostgreSQL database or Render Persistent Disk.
+
+```text
+       Browser / User
+             │
+             ▼ HTTPS
+    ┌────────────────────────────────────────┐
+    │          Frontend on VERCEL            │
+    │  - React 18 + Vite SPA                 │
+    │  - Global Edge CDN                     │
+    │  - Reads VITE_API_BASE_URL             │
+    └──────────────────┬─────────────────────┘
+                       │ HTTPS / CORS REST API
+                       ▼ (e.g. https://uptimewatch-api.onrender.com)
+    ┌────────────────────────────────────────┐
+    │          Backend on RENDER             │
+    │  - FastAPI Web Service                 │
+    │  - Async Background Uptime Worker      │
+    │  - Prometheus Metrics (/metrics)       │
+    └──────────────────┬─────────────────────┘
+                       │
+                       ▼ PostgreSQL or SQLite
+    ┌────────────────────────────────────────┐
+    │       Render PostgreSQL Database       │
+    │       (DATABASE_URL environment var)   │
+    └────────────────────────────────────────┘
+```
+
+---
+
+### Step 1: Deploy Backend & Database on Render
+
+1. **Sign in to Render** ([render.com](https://render.com)) and connect your GitHub account.
+2. *(Optional - Recommended for Production)* **Create a PostgreSQL Database**:
+   - Click **New +** -> **PostgreSQL**.
+   - Name: `uptimewatch-db`.
+   - Copy the **Internal Database URL** (or External URL).
+3. **Create the Backend Web Service**:
+   - Click **New +** -> **Web Service**.
+   - Select your repository: `https://github.com/AnsAryanRaj/UptimeWatch`.
+   - Configure the service settings:
+     - **Name**: `uptimewatch-backend`
+     - **Region**: Select closest region (e.g., Oregon, Frankfurt, Singapore)
+     - **Root Directory**: `backend`
+     - **Runtime**: `Python 3`
+     - **Build Command**: `pip install -r requirements.txt`
+     - **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+4. **Configure Environment Variables** in Render:
+   - `DATABASE_URL`: Paste your PostgreSQL connection URL (e.g., `postgresql://user:pass@host:5432/uptimewatch_db`) or leave empty to default to SQLite.
+   - `ALLOWED_ORIGINS`: `*` *(temporarily during initial deployment; update to your Vercel URL in Step 3)*.
+   - `PYTHONUNBUFFERED`: `1`
+5. Click **Create Web Service**.
+6. Once deployed, verify your backend:
+   - Health check: `https://<your-render-subdomain>.onrender.com/health` (should return `{"status": "ok"}`)
+   - OpenAPI Docs: `https://<your-render-subdomain>.onrender.com/docs`
+   - Copy your Render backend URL: `https://<your-render-subdomain>.onrender.com`
+
+---
+
+### Step 2: Deploy Frontend on Vercel
+
+1. **Sign in to Vercel** ([vercel.com](https://vercel.com)) and connect your GitHub account.
+2. Click **Add New...** -> **Project**.
+3. Select your `UptimeWatch` repository.
+4. Configure the project settings:
+   - **Framework Preset**: `Vite`
+   - **Root Directory**: Click edit and select `frontend`
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+5. **Add Environment Variable**:
+   - Key: `VITE_API_BASE_URL`
+   - Value: `https://<your-render-subdomain>.onrender.com` *(your Render backend URL from Step 1, without a trailing slash)*
+6. Click **Deploy**.
+7. Once deployment finishes, Vercel provides your production URL (e.g. `https://uptimewatch.vercel.app`).
+
+---
+
+### Step 3: Secure CORS on Render Backend
+
+1. Return to your **Render Dashboard** -> `uptimewatch-backend` -> **Environment**.
+2. Update the `ALLOWED_ORIGINS` variable:
+   - Key: `ALLOWED_ORIGINS`
+   - Value: `https://uptimewatch.vercel.app` *(replace with your exact Vercel production domain)*
+   - *Note: Multiple domains can be comma-separated. Vercel preview deployments (`*.vercel.app`) are automatically supported.*
+3. Click **Save Changes** (Render will automatically redeploy with the updated CORS policy).
+
+---
+
+### Step 4: Verification Checklist
+
+- [x] Open your Vercel URL in your browser: dashboard loads with clean dark theme.
+- [x] Add a website URL (e.g., `https://google.com` or `https://github.com`): status indicator turns **UP** with response time in milliseconds.
+- [x] Click **Check Now**: instant re-check executes and updates history logs.
+- [x] Click **/metrics** button in Navbar: opens the live Prometheus telemetry endpoint on Render.
+- [x] Historical logs modal displays past checks and status codes.

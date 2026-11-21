@@ -1,5 +1,6 @@
 import React from 'react';
 import { Activity, Plus, RefreshCw, BarChart2 } from 'lucide-react';
+import { METRICS_URL } from '../api';
 
 export default function Navbar({ onOpenAdd, onCheckAll, isCheckingAll }) {
   return (
@@ -22,7 +23,7 @@ export default function Navbar({ onOpenAdd, onCheckAll, isCheckingAll }) {
 
         <div className="flex items-center space-x-3">
           <a
-            href="/metrics"
+            href={METRICS_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="hidden sm:inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-700 hover:border-slate-600 bg-slate-800/60 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-medium transition"
