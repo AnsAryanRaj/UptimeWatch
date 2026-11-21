@@ -1,0 +1,45 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: uptimewatch-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:////data/uptimewatch.db
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - uptimewatch-data:/data
+    networks:
+      - uptimewatch-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: uptimewatch-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - uptimewatch-network
+
+volumes:
+  uptimewatch-data:
+    name: uptimewatch-data
+
+networks:
+  uptimewatch-network:
+    name: uptimewatch-network
+    driver: bridge
